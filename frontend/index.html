@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Discord Web Chat Relay</title>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #e0e0e0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #888;
+        }
+
+        /* Main Grid */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1.5fr;
+            gap: 30px;
+        }
+
+        @media (max-width: 768px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Cards */
+        .card {
+            background: rgba(30, 30, 40, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .card h2 {
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            color: #fff;
+        }
+
+        /* Form Groups */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #aaa;
+            font-size: 0.9em;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: #e0e0e0;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+        }
+
+        /* Button */
+        .btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Chat Area */
+        .chat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 16px;
+            margin-bottom: 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .session-info {
+            font-size: 0.9em;
+            color: #aaa;
+        }
+
+        .timer {
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .messages {
+            height: 400px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+        }
+
+        .message {
+            margin-bottom: 16px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .message-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .message-content {
+            flex: 1;
+        }
+
+        .message-username {
+            font-weight: 600;
+            margin-bottom: 4px;
+            color: #fff;
+        }
+
+        .message-text {
+            color: #ccc;
+            word-wrap: break-word;
+        }
+
+        .chat-input-area {
+            display: flex;
+            gap: 12px;
+        }
+
+        .chat-input-area input {
+            flex: 1;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: #e0e0e0;
+        }
+
+        .chat-input-area button {
+            width: auto;
+            padding: 12px 24px;
+        }
+
+        /* Notifications */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 8px;
+            animation: slideIn 0.3s ease;
+            z-index: 1000;
+        }
+
+        .notification.success {
+            background: #10b981;
+            color: white;
+        }
+
+        .notification.error {
+            background: #ef4444;
+            color: white;
+        }
+
+        .notification.info {
+            background: #3b82f6;
+            color: white;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* Turnstile */
+        .turnstile-wrapper {
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        /* Loading States */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+        }
+
+        .cf-turnstile {
+            display: flex;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Discord Web Chat Relay</h1>
+            <p>Chat in Discord without an account</p>
+        </div>
+
+        <div class="main-grid">
+            <!-- Session Creation Panel -->
+            <div class="card">
+                <h2>Start Chatting</h2>
+                <form id="sessionForm">
+                    <div class="form-group">
+                        <label>Username</label>
+                        <input type="text" id="username" placeholder="Enter username" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Avatar URL (https://...)</label>
+                        <input type="url" id="avatarUrl" placeholder="https://example.com/avatar.png" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Select Server</label>
+                        <select id="serverSelect" required>
+                            <option value="">Loading servers...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Select Channel</label>
+                        <select id="channelSelect" required disabled>
+                            <option value="">Select a server first</option>
+                        </select>
+                    </div>
+                    <div class="turnstile-wrapper">
+                        <div class="cf-turnstile" data-sitekey="YOUR_TURNSTILE_SITE_KEY" data-callback="onTurnstileSuccess"></div>
+                    </div>
+                    <button type="submit" class="btn" id="startBtn" disabled>Start Chat Session</button>
+                </form>
+            </div>
+
+            <!-- Chat Panel -->
+            <div class="card" id="chatPanel" style="display: none;">
+                <div class="chat-header">
+                    <div class="session-info">
+                        Connected as: <strong id="connectedUsername">-</strong>
+                    </div>
+                    <div class="session-info">
+                        Expires in: <span class="timer" id="timer">24:00:00</span>
+                    </div>
+                </div>
+                <div class="messages" id="messages">
+                    <div class="loading">Start a session to begin chatting</div>
+                </div>
+                <div class="chat-input-area">
+                    <input type="text" id="messageInput" placeholder="Type a message..." maxlength="2000">
+                    <button class="btn" id="sendBtn" disabled>Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_BASE_URL = 'http://localhost:8000'; // Change to your backend URL
+        let currentSession = null;
+        let turnstileToken = null;
+        let timerInterval = null;
+        let messageHistory = [];
+
+        // DOM Elements
+        const sessionForm = document.getElementById('sessionForm');
+        const usernameInput = document.getElementById('username');
+        const avatarUrlInput = document.getElementById('avatarUrl');
+        const serverSelect = document.getElementById('serverSelect');
+        const channelSelect = document.getElementById('channelSelect');
+        const startBtn = document.getElementById('startBtn');
+        const chatPanel = document.getElementById('chatPanel');
+        const connectedUsernameSpan = document.getElementById('connectedUsername');
+        const timerSpan = document.getElementById('timer');
+        const messagesDiv = document.getElementById('messages');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+
+        // Turnstile callback
+        window.onTurnstileSuccess = function(token) {
+            turnstileToken = token;
+            startBtn.disabled = false;
+        };
+
+        // Show notification
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            setTimeout(() => notification.remove(), 5000);
+        }
+
+        // Load guilds
+        async function loadGuilds() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/guilds`);
+                if (!response.ok) throw new Error('Failed to load servers');
+                const guilds = await response.json();
+                
+                serverSelect.innerHTML = '<option value="">Select a server</option>';
+                guilds.forEach(guild => {
+                    const option = document.createElement('option');
+                    option.value = guild.id;
+                    option.textContent = guild.name;
+                    serverSelect.appendChild(option);
+                });
+            } catch (error) {
+                showNotification('Failed to load servers: ' + error.message, 'error');
+                serverSelect.innerHTML = '<option value="">Error loading servers</option>';
+            }
+        }
+
+        // Load channels
+        async function loadChannels(guildId) {
+            channelSelect.disabled = true;
+            channelSelect.innerHTML = '<option value="">Loading channels...</option>';
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/channels/${guildId}`);
+                if (!response.ok) throw new Error('Failed to load channels');
+                const channels = await response.json();
+                
+                channelSelect.innerHTML = '<option value="">Select a channel</option>';
+                channels.forEach(channel => {
+                    const option = document.createElement('option');
+                    option.value = channel.id;
+                    option.textContent = channel.name;
+                    channelSelect.appendChild(option);
+                });
+                channelSelect.disabled = false;
+            } catch (error) {
+                showNotification('Failed to load channels: ' + error.message, 'error');
+                channelSelect.innerHTML = '<option value="">Error loading channels</option>';
+            }
+        }
+
+        // Create session
+        async function createSession(guildId, channelId, username, avatarUrl, token) {
+            const response = await fetch(`${API_BASE_URL}/create-session`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    guild_id: guildId,
+                    channel_id: channelId,
+                    username: username,
+                    avatar_url: avatarUrl,
+                    turnstile_token: token
+                })
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail || 'Failed to create session');
+            }
+            
+            return await response.json();
+        }
+
+        // Send message
+        async function sendMessage(sessionId, content) {
+            const response = await fetch(`${API_BASE_URL}/send-message`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    session_id: sessionId,
+                    content: content
+                })
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail || 'Failed to send message');
+            }
+            
+            return await response.json();
+        }
+
+        // Check session validity
+        async function checkSession(sessionId) {
+            const response = await fetch(`${API_BASE_URL}/session/${sessionId}`);
+            return await response.json();
+        }
+
+        // Add message to UI
+        function addMessageToUI(username, avatarUrl, content, isOwn = false) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message';
+            messageDiv.innerHTML = `
+                <img src="${avatarUrl}" class="message-avatar" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+                <div class="message-content">
+                    <div class="message-username">${escapeHtml(username)}</div>
+                    <div class="message-text">${escapeHtml(content)}</div>
+                </div>
+            `;
+            
+            if (messagesDiv.querySelector('.loading')) {
+                messagesDiv.innerHTML = '';
+            }
+            
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            
+            // Store in history
+            messageHistory.push({ username, avatarUrl, content, timestamp: Date.now() });
+            if (messageHistory.length > 100) messageHistory.shift();
+        }
+
+        // Escape HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Update timer
+        function updateTimer(expiresAt) {
+            if (timerInterval) clearInterval(timerInterval);
+            
+            function update() {
+                const now = new Date();
+                const expiry = new Date(expiresAt);
+                const diff = expiry - now;
+                
+                if (diff <= 0) {
+                    clearInterval(timerInterval);
+                    timerSpan.textContent = '00:00:00';
+                    showNotification('Session expired', 'error');
+                    endSession();
+                    return;
+                }
+                
+                const hours = Math.floor(diff / 3600000);
+                const minutes = Math.floor((diff % 3600000) / 60000);
+                const seconds = Math.floor((diff % 60000) / 1000);
+                timerSpan.textContent = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            }
+            
+            update();
+            timerInterval = setInterval(update, 1000);
+        }
+
+        // End session
+        function endSession() {
+            currentSession = null;
+            if (timerInterval) clearInterval(timerInterval);
+            chatPanel.style.display = 'none';
+            sessionForm.style.display = 'block';
+            document.querySelector('.main-grid .card:first-child').style.display = 'block';
+            showNotification('Session ended', 'info');
+        }
+
+        // Start chat session
+        sessionForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            if (!turnstileToken) {
+                showNotification('Please complete the captcha', 'error');
+                return;
+            }
+            
+            const username = usernameInput.value.trim();
+            const avatarUrl = avatarUrlInput.value.trim();
+            const guildId = serverSelect.value;
+            const channelId = channelSelect.value;
+            
+            if (!username || !avatarUrl || !guildId || !channelId) {
+                showNotification('Please fill all fields', 'error');
+                return;
+            }
+            
+            startBtn.disabled = true;
+            startBtn.textContent = 'Creating session...';
+            
+            try {
+                const session = await createSession(guildId, channelId, username, avatarUrl, turnstileToken);
+                currentSession = {
+                    id: session.session_id,
+                    expiresAt: session.expires_at,
+                    username: username,
+                    avatarUrl: avatarUrl
+                };
+                
+                // Update UI
+                connectedUsernameSpan.textContent = username;
+                updateTimer(session.expires_at);
+                chatPanel.style.display = 'block';
+                sessionForm.reset();
+                turnstileToken = null;
+                startBtn.disabled = true;
+                messageInput.disabled = false;
+                sendBtn.disabled = false;
+                messagesDiv.innerHTML = '<div class="loading">Session started! You can now send messages.</div>';
+                
+                showNotification('Session created successfully!', 'success');
+                
+                // Periodically check session validity
+                setInterval(async () => {
+                    if (currentSession) {
+                        const result = await checkSession(currentSession.id);
+                        if (!result.valid) {
+                            endSession();
+                        }
+                    }
+                }, 60000);
+                
+            } catch (error) {
+                showNotification(error.message, 'error');
+                startBtn.disabled = false;
+                startBtn.textContent = 'Start Chat Session';
+                // Reset Turnstile
+                turnstileToken = null;
+                if (window.turnstile) {
+                    window.turnstile.reset();
+                }
+            }
+        });
+        
+        // Send message
+        sendBtn.addEventListener('click', async () => {
+            if (!currentSession) {
+                showNotification('No active session', 'error');
+                return;
+            }
+            
+            const content = messageInput.value.trim();
+            if (!content) return;
+            
+            sendBtn.disabled = true;
+            sendBtn.textContent = 'Sending...';
+            
+            try {
+                await sendMessage(currentSession.id, content);
+                addMessageToUI(currentSession.username, currentSession.avatarUrl, content, true);
+                messageInput.value = '';
+                showNotification('Message sent!', 'success');
+            } catch (error) {
+                showNotification(error.message, 'error');
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.textContent = 'Send';
+            }
+        });
+        
+        // Enter key to send
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !sendBtn.disabled && currentSession) {
+                sendBtn.click();
+            }
+        });
+        
+        // Load servers on page load
+        serverSelect.addEventListener('change', () => {
+            if (serverSelect.value) {
+                loadChannels(serverSelect.value);
+            } else {
+                channelSelect.disabled = true;
+                channelSelect.innerHTML = '<option value="">Select a server first</option>';
+            }
+        });
+        
+        // Initial load
+        loadGuilds();
+    </script>
+</body>
+</html>
